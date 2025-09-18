@@ -2,6 +2,8 @@
 import argparse, os, time, sys, json
 from urllib.parse import quote
 import requests
+from dotenv import load_dotenv
+load_dotenv("secrets/.env")
 
 API_KEY = os.getenv("RIOT_API_KEY")
 if not API_KEY:

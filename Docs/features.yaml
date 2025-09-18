@@ -1,0 +1,20 @@
+features:
+  - name: kill_participation
+    desc: "(kills + assists) / team_kills"
+    source: "participant stats"
+
+  - name: damage_share
+    desc: "totalDamageDealtToChampions / team totalDamageDealtToChampions"
+    source: "participant stats"
+
+  - name: vision_score_per_min
+    desc: "visionScore / (gameDuration / 60)"
+    source: "participant stats"
+
+  - name: cs_per_min
+    desc: "(totalMinionsKilled + neutralMinionsKilled) / (gameDuration / 60)"
+    source: "participant stats"
+
+  - name: objective_contrib_pct
+    desc: "team objective takedown contribution (dragons, heralds, barons)"
+    source: "participant challenges/objectives"

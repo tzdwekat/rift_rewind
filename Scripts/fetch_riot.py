@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-import argparse, os, time, sys, json
+import argparse, asyncio, aiohttp, os, time, sys, json
 from urllib.parse import quote
 import requests
 from dotenv import load_dotenv
-load_dotenv("secrets/.env")
+from datetime import datetime
+load_dotenv("Secrets/.env")
 
 API_KEY = os.getenv("RIOT_API_KEY")
 if not API_KEY:
@@ -73,12 +74,6 @@ def get_puuid_from_riot_id(regional_host: str, riot_id: str) -> str:
     data = riot_get(url)
     return data["puuid"]
 
-def get_puuid_from_summoner_name(platform_host: str, summoner_name: str) -> str:
-    # Deprecated for player-facing, but still usable to locate PUUID
-    url = f"https://{platform_host}.api.riotgames.com/lol/summoner/v4/summoners/by-name/{quote(summoner_name)}"
-    data = riot_get(url)
-    return data["puuid"]
-
 def get_match_ids(regional_host: str, puuid: str, count=20, start=0, queue=None):
     params = {"start": start, "count": count}
     if queue is not None:
@@ -92,44 +87,30 @@ def get_match(regional_host: str, match_id: str):
 
 # ---- CLI ----
 def main():
-    p = argparse.ArgumentParser(description="Fetch Riot match history by Riot ID or Summoner Name.")
-    p.add_argument("--region", required=True, help="e.g., na, euw, eune, kr, jp, oce, sg, ph, th, tw, vn")
-    p.add_argument("--name", required=True, help="Riot ID 'GameName#TAG' (preferred) or Summoner Name")
-    p.add_argument("--use-summoner-name", action="store_true", help="Interpret --name as legacy Summoner Name")
-    p.add_argument("--count", type=int, default=10, help="How many match IDs to fetch (max 100 per call)")
-    p.add_argument("--dump", action="store_true", help="Also download full match JSONs")
-    args = p.parse_args()
+    riot_id = input("Enter Riot ID (format: SummonerName#TAG): ").strip()
+    region = input("Enter Region(na, euw, eune, kr, jp, oce, br, lan, las, sg, th, tw, vn, ph): ").strip().lower()
+    year = (datetime.now()).year
 
-    platform = PLATFORM_BY_REGION.get(args.region.lower())
+    platform = PLATFORM_BY_REGION.get(region)
     if not platform:
-        raise SystemExit(f"Unknown region '{args.region}'. Try one of: {', '.join(sorted(set(PLATFORM_BY_REGION.keys())))}")
+        print(f"❌ Unknown region '{region}'.", file=sys.stderr)
+        return
     regional = regional_from_platform(platform)
 
-    if args.use_summoner_name or "#" not in args.name:
-        puuid = get_puuid_from_summoner_name(platform, args.name)
-    else:
-        puuid = get_puuid_from_riot_id(regional, args.name)
+    puuid = get_puuid_from_riot_id(regional, riot_id)
+    print(f"✅ PUUID resolved: {puuid}")
 
-    print(f"Resolved PUUID: {puuid}")
+    match_ids = get_match_ids(regional, puuid, count=5)
+    print(f"✅ Found {len(match_ids)} matches:")
+    for mid in match_ids:
+        print(" -", mid)
 
-    match_ids = get_match_ids(regional, puuid, count=args.count)
-    print(f"Got {len(match_ids)} match IDs. Example: {match_ids[:3]}")
-
-    # Save locally
-    out_dir = os.path.join("data", "raw", puuid)
+    # Save results
+    out_dir = os.path.join("data","raw",puuid)
     os.makedirs(out_dir, exist_ok=True)
-    with open(os.path.join(out_dir, "match_ids.json"), "w") as f:
-        json.dump(match_ids, f, indent=2)
-
-    if args.dump:
-        for mid in match_ids:
-            mpath = os.path.join(out_dir, f"{mid}.json")
-            if os.path.exists(mpath):
-                continue
-            m = get_match(regional, mid)
-            with open(mpath, "w") as f:
-                json.dump(m, f)
-        print(f"Saved {len(match_ids)} matches to {out_dir}")
+    with open(os.path.join(out_dir,"match_ids.json"),"w") as f:
+        json.dump(match_ids,f,indent=2)
+    print(f"📂 Saved to {out_dir}/match_ids.json")
 
 if __name__ == "__main__":
     main()
